@@ -1,0 +1,51 @@
+package ass1;
+
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
+
+public class MSequentialSorter implements Sorter {
+
+	@Override
+	public <T extends Comparable<? super T>> List<T> sort(List<T> list) {
+
+		int size = list.size();
+
+		if (size < 2) {
+			return list;
+		}
+
+		List<T> left = sort(new ArrayList<>(list.subList(0, (size + 1) / 2)));
+		List<T> right = sort(new ArrayList<>(list.subList((size + 1) / 2, size)));
+
+		return merge(new LinkedList<T>(left), new LinkedList<T>(right));
+	}
+
+	public <T extends Comparable<? super T>> List<T> merge(Queue<T> left, Queue<T> right) {
+		
+		ArrayList<T> toReturn = new ArrayList<>();
+
+		
+		while(!left.isEmpty() && !right.isEmpty()) {
+			
+			//(left.peek().compareTo(right.peek()) < 0) ? toReturn.add(left.poll()) : toReturn.add(right.poll());
+
+			if(left.peek().compareTo(right.peek()) < 0) {
+				toReturn.add(left.poll());
+			} else {
+				toReturn.add(right.poll());
+			}
+		}
+		
+		if(!left.isEmpty()) {
+			toReturn.addAll(left);
+		}
+		
+		if(!right.isEmpty()) {
+			toReturn.addAll(right);
+		}
+
+		return toReturn;
+	}
+}

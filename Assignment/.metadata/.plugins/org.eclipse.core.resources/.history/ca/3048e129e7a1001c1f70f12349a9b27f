@@ -1,0 +1,30 @@
+package ass1;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class MSequentialSorter implements Sorter {
+
+  @Override
+  public <T extends Comparable<? super T>> List<T> sort(List<T> list) {
+	  
+	  System.out.println(list);
+	  
+	  
+	  //If the list size is greater than 1 split again
+	  if(list.size() > 1) {
+		  sort(new ArrayList<>(list.subList(0, (list.size() + 1)/2)));
+		  sort(new ArrayList<>(list.subList((list.size() + 1)/2, list.size())));
+	  }
+	  
+	  
+	  return merge(list);
+  }
+  
+  
+  public <T extends Comparable<? super T>> List<T> merge(List<T> list){
+	  
+	  
+	  return null;
+  }
+}
