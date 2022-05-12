@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 public class TestFloat {
 
   public static final Float[][] dataset={
-    {1f,2f,3f,4f,5f,6f},
+    {1f,2f,3f,4f,5f,6f, 7f, 8f},
     {7f,6f,5f,4f,3f,2f},
     {-7f,6f,-5f,-4f,3f,-2f},
     {7f/0f,-6f/0f,5f,4f,3f,2f},
