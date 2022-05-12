@@ -5,7 +5,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
@@ -23,8 +22,48 @@ import dataCakes.Sugar;
 import dataCakes.Wheat;
 
 abstract class Producer<T> extends AbstractActor {
+	
+	Class<T> type;
+	Queue<T> items = new LinkedList<>();
+	int maxSize = 10;
+	boolean running;
+	
+	public Producer(Class<T> type){
+		this.type = type;
+	}
 
 	public abstract CompletableFuture<T> make();
+	
+	public Receive createReceive() {
+		return receiveBuilder().match(type, r -> {// startup message
+
+			items.offer(r);
+
+		}).match(MakeOne.class, r -> {// startup message
+			if (items.size() >= maxSize) {
+				running = false;
+			} else {
+				CompletableFuture<T> createType = make();
+				CompletableFuture<MakeOne> wait = createType.thenApply((w) -> new MakeOne());
+				Patterns.pipe(createType, getContext().dispatcher()).to(self());
+				Patterns.pipe(wait, getContext().dispatcher()).to(self());
+			}
+
+		}).match(GiveOne.class, r -> {// startup message
+
+			if (items.isEmpty()) {
+				ActorRef s = sender();
+				Patterns.pipe(make(), getContext().dispatcher()).to(s);
+			} else {
+				sender().tell(items.poll(), self());
+			}
+
+			if (!running && items.size() < maxSize) {
+				running = true;
+				self().tell(new MakeOne(), sender());
+			}
+		}).build();
+	}
 
 }
 
@@ -43,42 +82,8 @@ class GiveOne implements Serializable {
 //--------
 class Alice extends Producer<Wheat> {
 
-	Queue<Wheat> items = new LinkedList<>();
-
-	int maxSize = 10;
-	boolean running = true;
-
-	@Override
-	public Receive createReceive() {
-		return receiveBuilder().match(Wheat.class, w -> {// startup message
-
-			items.offer(w);
-
-		}).match(MakeOne.class, r -> {// startup message
-			if (items.size() >= maxSize) {
-				running = false;
-			} else {
-				CompletableFuture<Wheat> makeFuture = make();
-				CompletableFuture<MakeOne> makeComplete = makeFuture.thenApply((p) -> new MakeOne());
-
-				Patterns.pipe(makeFuture, getContext().dispatcher()).to(self());
-				Patterns.pipe(makeComplete, getContext().dispatcher()).to(self());
-			}
-
-		}).match(GiveOne.class, r -> {// startup message
-
-			if (items.isEmpty()) {
-				ActorRef s = sender();
-				Patterns.pipe(make(), getContext().dispatcher()).to(s);
-			} else {
-				sender().tell(items.poll(), self());
-			}
-
-			if (!running && items.size() <= maxSize) {
-				running = true;
-				self().tell(new MakeOne(), self());
-			}
-		}).build();
+	public Alice(){
+		super(Wheat.class);
 	}
 
 	@Override
@@ -88,43 +93,11 @@ class Alice extends Producer<Wheat> {
 }
 
 class Bob extends Producer<Sugar> {
-	Queue<Sugar> items = new LinkedList<>();
-	int maxSize = 10;
-	boolean running = true;
 
-	@Override
-	public Receive createReceive() {
-		return receiveBuilder().match(Sugar.class, w -> {// startup message
-
-			items.offer(w);
-
-		}).match(MakeOne.class, r -> {// startup message
-			if (items.size() >= maxSize) {
-				running = false;
-			} else {
-				CompletableFuture<Sugar> makeFuture = make();
-				CompletableFuture<MakeOne> makeComplete = makeFuture.thenApply((p) -> new MakeOne());
-
-				Patterns.pipe(makeFuture, getContext().dispatcher()).to(self());
-				Patterns.pipe(makeComplete, getContext().dispatcher()).to(self());
-			}
-
-		}).match(GiveOne.class, r -> {// startup message
-
-			if (items.isEmpty()) {
-				ActorRef s = sender();
-				Patterns.pipe(make(), getContext().dispatcher()).to(s);
-			} else {
-				sender().tell(items.poll(), self());
-			}
-
-			if (!running && items.size() <= maxSize) {
-				running = true;
-				self().tell(new MakeOne(), self());
-			}
-		}).build();
+	public Bob(){
+		super(Sugar.class);
 	}
-
+	
 	@Override
 	public CompletableFuture<Sugar> make() {
 		return CompletableFuture.supplyAsync(() -> new Sugar());
@@ -134,82 +107,44 @@ class Bob extends Producer<Sugar> {
 class Charles extends Producer<Cake> {
 	ActorRef alice;
 	ArrayList<ActorRef> bob;
-	Queue<Cake> items = new LinkedList<>();
-	int maxSize = 10;
-	boolean running = true;
 	int index = 0;
 
 
 	public Charles(ActorRef alice, ArrayList<ActorRef> bob) {
+		super(Cake.class);
 		this.alice = alice;
 		this.bob = bob;
-		
-		
 	}
 
 
-	@Override
-	public Receive createReceive() {
-		return receiveBuilder().match(Cake.class, w -> {// startup message
-
-			items.offer(w);
-
-		}).match(MakeOne.class, r -> {// startup message
-			if (items.size() >= maxSize) {
-				running = false;
-			} else {
-				CompletableFuture<Cake> makeFuture = make();
-				CompletableFuture<MakeOne> makeComplete = makeFuture.thenApply((p) -> new MakeOne());
-
-				Patterns.pipe(makeFuture, getContext().dispatcher()).to(self());
-				Patterns.pipe(makeComplete, getContext().dispatcher()).to(self());
-			}
-
-		}).match(GiveOne.class, r -> {// startup message
-
-			if (items.isEmpty()) {
-				ActorRef s = sender();
-				Patterns.pipe(make(), getContext().dispatcher()).to(s);
-			} else {
-				sender().tell(items.poll(), self());
-			}
-
-			if (!running && items.size() <= maxSize) {
-				running = true;
-				self().tell(new MakeOne(), self());
-			}
-		}).build();
-	}
 
 	@Override
 	public CompletableFuture<Cake> make() {
 		CompletableFuture<Object> wheat = Patterns.ask(alice, new GiveOne(), Duration.ofMillis(10_000_000))
-				.toCompletableFuture();
+				.toCompletableFuture();	
 		
-        
-		if(index > bob.size()) {
+		if(index > bob.size() - 1) {
 			index = 0;
-		}
-        
+		}        
         
 		CompletableFuture<Object> sugar = Patterns.ask(bob.get(index++), new GiveOne(), Duration.ofMillis(10_000_000))
 				.toCompletableFuture();
 		return wheat.thenCombine(sugar, (w, s) -> new Cake((Sugar) s, (Wheat) w));
 	}
-
 }
 
 class Tim extends AbstractActor {
 	int hunger;
+	boolean running = true;
 	ActorRef charles;
+	ActorRef originalSender = null;
 
 	public Tim(int hunger, ActorRef charles) {
 		this.hunger = hunger;
 		this.charles = charles;
 	}
 
-	boolean running = true;
-	ActorRef originalSender = null;
+
 
 	@Override
 	public Receive createReceive() {
@@ -230,6 +165,8 @@ class Tim extends AbstractActor {
 }
 
 public class Cakes {
+	
+	
 	public static void main(String[] args) {
 		ClassLoader.getSystemClassLoader().setDefaultAssertionStatus(true);
 		Gift g = computeGift(1000);
@@ -238,23 +175,25 @@ public class Cakes {
 	}
 
 	public static Gift computeGift(int hunger) {
+		
+		//Change this to change amount of bobs from 1-4
+		int bobCount = 4;
 		ActorSystem s = AkkaConfig.newSystem("Cakes", 2501,
-//				Map.of("Tim", "192.168.56.1", "Bob", "192.168.56.1", "Charles", "192.168.56.1"
-//				// Alice stays local
-//				)
-				//Collections.emptyMap());
-				
+
 				Map.of(
+						"Tim", "192.168.56.1",
+						"Charles", "192.168.56.1",
 						"Bob0", "192.168.56.1",
 	                    "Bob1", "192.168.56.1",
 	                    "Bob2", "192.168.56.1",
 	                    "Bob3", "192.168.56.1"
 				));
 		
+		
 		ArrayList<ActorRef> boblist = new ArrayList<>();
 		
 
-	    for(int i = 0; i < 4; ++i) {
+	    for(int i = 0; i < bobCount; i++) {
 	    	boblist.add(s.actorOf(Props.create(Bob.class, () -> new Bob()), "Bob" + i));
 	    }		
 	    
@@ -279,7 +218,6 @@ public class Cakes {
 	       });
 		try {
 			return (Gift) gift.join();
-			
 		} finally {
 			alice.tell(PoisonPill.getInstance(), ActorRef.noSender());
 			for(ActorRef ar : boblist) {

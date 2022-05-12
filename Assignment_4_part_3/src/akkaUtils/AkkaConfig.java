@@ -28,7 +28,7 @@ public class AkkaConfig {
       ));
     for(Entry<String, String> e:mapPathIp.entrySet()) {
       com.typesafe.config.Config c = ConfigFactory.parseString(
-        "akka.actor.deployment.\"/"+e.getKey()+"\".remote = \"akka.tcp://OpenAkka@"+e.getValue()+"\"");
+        "akka.actor.deployment.\""+e.getKey()+"\".remote = \"akka.tcp://OpenAkka@"+e.getValue()+":2500\"");
       config=config.withFallback(c);
       }
     config=config.withFallback(ConfigFactory.load());
